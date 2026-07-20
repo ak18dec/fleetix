@@ -1,0 +1,13 @@
+# H2 in-memory datasource for local development
+spring:
+  datasource:
+    url: jdbc:h2:mem:fleetix;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+
+# H2 web console available at http://localhost:8081/h2-console
+  h2:
+    console:
+      enabled: true
+      path: /h2-console

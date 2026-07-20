@@ -1,0 +1,118 @@
+services:
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: fleetix
+      POSTGRES_USER: fleetix
+      POSTGRES_PASSWORD: fleetix
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fleetix -d fleetix"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+  
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+  
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_INTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_ZOOKEEPER_CONNECTION_TIMEOUT_MS: 120000
+    healthcheck:
+      test: 
+        [
+          "CMD-SHELL", 
+          "kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1"
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  fleet-service:
+    build:
+      context: ../services/fleet-service
+      # dockerfile: Dockerfile
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/fleetix
+      SPRING_DATASOURCE_USERNAME: fleetix
+      SPRING_DATASOURCE_PASSWORD: fleetix
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 8081"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  bff-service:
+    build:
+      context: ../services/bff-service
+      # dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      fleet-service:
+        condition: service_healthy
+    environment:
+      FLEET_SERVICE_URL: http://fleet-service:8081
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 8080"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+  
+  frontend:
+    build:
+      context: ../apps/frontend
+      # dockerfile: Dockerfile
+    ports:
+      - "4200:4200"
+    depends_on:
+      bff-service:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 4200"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+  
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: fleetix-local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      DYNAMIC_CONFIG_ENABLED: "true"

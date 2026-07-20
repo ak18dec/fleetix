@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: fleet-service
+
+# Datasource - Postgres via environment variables (override with application-dev.yaml for local dev)
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/fleetix}
+    username: ${SPRING_DATASOURCE_USERNAME:fleetix}
+    password: ${SPRING_DATASOURCE_PASSWORD:fleetix}
+    driver-class-name: org.postgresql.Driver
+
+# JPA - schema managed explicitly via schema.sql
+  jpa:
+    hibernate:
+      ddl-auto: none
+  sql:
+    init:
+      mode: always
+
+# Kafka Producer
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    admin:
+      fail-fast: false
+
+server:
+  port: 8081
